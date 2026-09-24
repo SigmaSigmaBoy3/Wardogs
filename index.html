@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WARDOGS Fire Control Calculator</title>
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LXS7GCWWJY"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-LXS7GCWWJY');
+</script>
 <style>
 :root{--bg:#0b0f13;--panel:#151b21;--panel2:#0f1419;--border:#2a333c;--text:#e8edf1;--muted:#8d99a5;--accent:#8bc34a;--cyan:#42c6d5;--danger:#ef5350}
 *{box-sizing:border-box}
@@ -130,7 +138,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
   <div class="support-title">WARDOGS COMMUNITY</div>
   <div class="support-links">
     <button type="button" id="discordBtn">💬 Discord: _predict</button>
-    <a class="support-link" href="https://ko-fi.com/predictwar" target="_blank" rel="noopener noreferrer">☕ Support on Ko-fi</a>
+    <a id="kofiLink" class="support-link" href="https://ko-fi.com/predictwar" target="_blank" rel="noopener noreferrer">☕ Support on Ko-fi</a>
   </div>
   <div id="discordCopied" class="sub support-note">Discord username: <b>_predict</b></div>
 </section>
@@ -142,6 +150,8 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 (() => {
 const $ = id => document.getElementById(id);
 let weapon = "mortar", arc = "high";
+let lastTrackedCalculation = "";
+function track(name, params={}){ if(typeof gtag === "function") gtag("event", name, params); }
 
 /* Firing-table data used by the calculator. */
 const mortar = [[132,850],[140,840],[151,830],[163,820],[175,810],[187,800],[198,790],[208,780],[219,770],[229,760],[239,750],[250,740],[260,730],[270,720],[280,710],[290,700],[300,690],[310,680],[319,670],[329,660],[339,650],[348,640],[358,630],[367,620],[376,610],[385,600],[394,590],[403,580],[412,570],[420,560],[429,550],[437,540],[446,530],[454,520],[462,510],[470,500],[478,490],[486,480],[494,470],[501,460],[509,450],[516,440],[524,430],[531,420],[538,410],[545,400],[552,390],[559,380],[565,370],[572,360],[578,350],[585,340],[591,330],[597,320],[603,310],[609,300],[615,290],[620,280],[626,270],[631,260],[636,250],[641,240],[646,230],[651,220],[656,210],[661,200],[666,190],[670,180],[675,170],[680,160],[684,150]];
@@ -175,6 +185,12 @@ function calc(){
   const table=weapon==="mortar" ? mortar : (arc==="low" ? low : high);
   const el=interp(table,d);
 
+  const calcSignature = [gx,gy,tx,ty,weapon,arc].join("|");
+  if(calcSignature !== lastTrackedCalculation){
+    lastTrackedCalculation = calcSignature;
+    track("calculator_used", {weapon, arc: weapon === "sph" ? arc : "none", distance_m: Math.round(d), in_range: el !== null});
+  }
+
   $("distance").textContent=Math.round(d);
   $("bearing").textContent=br.toFixed(1)+"°";
   $("bearingMil").textContent=Math.round(bm);
@@ -203,6 +219,7 @@ function calc(){
 }
 function setWeapon(w){
   weapon=w;
+  track("weapon_selected", {weapon:w});
   $("mortarBtn").classList.toggle("active",w==="mortar");
   $("sphBtn").classList.toggle("active",w==="sph");
   $("arcWrap").classList.toggle("hidden",w==="mortar");
@@ -210,6 +227,7 @@ function setWeapon(w){
 }
 function setArc(a){
   arc=a;
+  track("arc_selected", {arc:a});
   $("highBtn").classList.toggle("active",a==="high");
   $("lowBtn").classList.toggle("active",a==="low");
   calc();
@@ -243,13 +261,14 @@ $("saveTargetBtn").addEventListener("click",()=>{
   const name=prompt("Name this target:","Target "+(getSavedTargets().length+1));
   if(name===null)return; const clean=name.trim(); if(!clean){alert("Please enter a target name.");return;}
   t.name=clean; const list=getSavedTargets(); list.unshift(t); saveSavedTargets(list.slice(0,50));
+  track("target_saved", {weapon:t.weapon, arc:t.weapon === "sph" ? t.arc : "none", distance_m:Math.round(t.distance)});
 });
 $("targetHistory").addEventListener("click",async e=>{
   const b=e.target.closest("button[data-action]"); if(!b)return; const i=Number(b.dataset.index),list=getSavedTargets(),t=list[i]; if(!t)return;
-  if(b.dataset.action==="load"){ $("gx").value=t.gx;$("gy").value=t.gy;$("tx").value=t.tx;$("ty").value=t.ty; setWeapon(t.weapon); if(t.weapon==="sph")setArc(t.arc); calc(); }
-  if(b.dataset.action==="rename"){const name=prompt("Rename target:",t.name);if(name&&name.trim()){t.name=name.trim();saveSavedTargets(list);}}
-  if(b.dataset.action==="delete"){if(confirm("Delete "+t.name+"?")){list.splice(i,1);saveSavedTargets(list);}}
-  if(b.dataset.action==="copy"){const text=`${t.name} | ${Math.round(t.distance)} m | Bearing ${t.bearing.toFixed(1)}° | Elevation ${t.elevation===null?"OUT":Math.round(t.elevation)+" mil"}`;try{await navigator.clipboard.writeText(text);b.textContent="COPIED";setTimeout(()=>b.textContent="COPY",1000)}catch(e){alert(text)}}
+  if(b.dataset.action==="load"){ $("gx").value=t.gx;$("gy").value=t.gy;$("tx").value=t.tx;$("ty").value=t.ty; setWeapon(t.weapon); if(t.weapon==="sph")setArc(t.arc); calc(); track("target_loaded", {weapon:t.weapon, arc:t.weapon === "sph" ? t.arc : "none"}); }
+  if(b.dataset.action==="rename"){const name=prompt("Rename target:",t.name);if(name&&name.trim()){t.name=name.trim();saveSavedTargets(list);track("target_renamed");}}
+  if(b.dataset.action==="delete"){if(confirm("Delete "+t.name+"?")){list.splice(i,1);saveSavedTargets(list);track("target_deleted", {weapon:t.weapon});}}
+  if(b.dataset.action==="copy"){track("target_copied", {weapon:t.weapon}); const text=`${t.name} | ${Math.round(t.distance)} m | Bearing ${t.bearing.toFixed(1)}° | Elevation ${t.elevation===null?"OUT":Math.round(t.elevation)+" mil"}`;try{await navigator.clipboard.writeText(text);b.textContent="COPIED";setTimeout(()=>b.textContent="COPY",1000)}catch(e){alert(text)}}
 });
 renderHistory();
 $("discordBtn").addEventListener("click",async()=>{try{await navigator.clipboard.writeText("_predict");$("discordCopied").textContent="Copied Discord username: _predict";setTimeout(()=>$("discordCopied").textContent="Discord username: _predict",1500)}catch(e){alert("Discord: _predict")}});
